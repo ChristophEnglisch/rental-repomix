@@ -1,0 +1,168 @@
+/**
+ * Dynamic Repomix config builder
+ * Generates configs on-the-fly without persisting them
+ */
+import { config } from './config.js';
+import { resolveDependencies, buildDependencyGraph } from './backend.js';
+import { getSharedPaths, getConfigPaths } from './frontend.js';
+/**
+ * Create base repomix config
+ */
+function createBaseConfig(outputPath, headerText, includes, ignorePatterns) {
+    return {
+        output: {
+            filePath: outputPath,
+            style: config.repomixDefaults.style,
+            headerText,
+            removeComments: config.repomixDefaults.removeComments,
+            removeEmptyLines: config.repomixDefaults.removeEmptyLines,
+            topFilesLength: config.repomixDefaults.topFilesLength,
+            showLineNumbers: config.repomixDefaults.showLineNumbers,
+            copyToClipboard: config.repomixDefaults.copyToClipboard,
+        },
+        include: includes,
+        ignore: {
+            useGitignore: true,
+            useDefaultPatterns: true,
+            customPatterns: ignorePatterns,
+        },
+        security: {
+            enableSecurityCheck: true,
+        },
+    };
+}
+/**
+ * Format dependency list for header
+ */
+function formatDepsHeader(deps) {
+    if (deps.length === 0)
+        return '';
+    const apiDeps = deps.filter(d => d.scope === 'api').map(d => d.module);
+    const fullDeps = deps.filter(d => d.scope === 'full').map(d => d.module);
+    const parts = [];
+    if (apiDeps.length > 0)
+        parts.push(`API: ${apiDeps.join(', ')}`);
+    if (fullDeps.length > 0)
+        parts.push(`Full: ${fullDeps.join(', ')}`);
+    return ` + Dependencies (${parts.join('; ')})`;
+}
+/**
+ * Generate backend include patterns
+ */
+function generateBackendIncludes(module, dependencies, layers, includeYaml = true) {
+    const includes = [];
+    // API is always included
+    includes.push(`rental-backend/src/main/java/de/cenglisch/rentalbackend/${module.name}/api/**/*.java`);
+    // Main module - layer filtering
+    if (layers && layers.length > 0) {
+        // Include only specified layers
+        for (const layer of layers) {
+            includes.push(`rental-backend/src/main/java/de/cenglisch/rentalbackend/${module.layers[layer]}`);
+        }
+    }
+    else {
+        // Include all layers (default)
+        includes.push(`rental-backend/src/main/java/de/cenglisch/rentalbackend/${module.name}/core/**/*.java`);
+    }
+    // Dependencies
+    for (const dep of dependencies) {
+        if (dep.scope === 'api') {
+            includes.push(`rental-backend/src/main/java/de/cenglisch/rentalbackend/${dep.module}/api/**/*.java`);
+        }
+        else {
+            includes.push(`rental-backend/src/main/java/de/cenglisch/rentalbackend/${dep.module}/**/*.java`);
+        }
+    }
+    // Config files
+    if (includeYaml) {
+        includes.push('rental-backend/src/main/resources/application*.yml');
+    }
+    return includes;
+}
+/**
+ * Generate frontend include patterns
+ */
+function generateFrontendIncludes(module) {
+    const includes = [];
+    // Module files
+    includes.push(`${module.path}/**/*.tsx`);
+    includes.push(`${module.path}/**/*.ts`);
+    // Shared files
+    if (module.includeShared) {
+        includes.push(...getSharedPaths());
+    }
+    // Config files
+    includes.push(...getConfigPaths());
+    return includes;
+}
+// ============================================
+// Public API - Build configs dynamically
+// ============================================
+/**
+ * Build config for a backend module
+ */
+export function buildBackendConfig(module, allModules, depsMode = 'none', layers) {
+    const graph = buildDependencyGraph(allModules);
+    let dependencies = [];
+    let suffix = '';
+    if (depsMode === 'api' && module.dependencies.length > 0) {
+        dependencies = resolveDependencies(module.name, graph, 'api');
+        suffix = '-deps';
+    }
+    else if (depsMode === 'full' && module.dependencies.length > 0) {
+        dependencies = resolveDependencies(module.name, graph, 'full');
+        suffix = '-deps-full';
+    }
+    if (layers && layers.length > 0) {
+        suffix += `-${layers.join('-')}`;
+    }
+    const outputPath = `${config.outputDir}/backend/${module.name}${suffix}-packed.txt`;
+    let headerText = `Bounded Context: ${module.displayName}`;
+    // Layer disclaimer
+    if (layers && layers.length > 0) {
+        const included = layers.join(', ');
+        const allLayers = ['domain', 'application', 'adapter'];
+        const excluded = allLayers.filter(l => !layers.includes(l)).join(', ');
+        headerText += `\n\n⚠️ PARTIAL VIEW - Only ${included} layer(s) included.`;
+        if (excluded) {
+            headerText += ` Missing: ${excluded}.`;
+        }
+        headerText += ` API package always included.`;
+    }
+    headerText += formatDepsHeader(dependencies);
+    const includes = generateBackendIncludes(module, dependencies, layers);
+    return createBaseConfig(outputPath, headerText, includes, config.backendIgnorePatterns);
+}
+/**
+ * Build config for a frontend module
+ */
+export function buildFrontendConfig(module) {
+    const outputPath = `${config.outputDir}/frontend/${module.name}-packed.txt`;
+    const headerText = `Frontend: ${module.displayName} Module + Shared`;
+    const includes = generateFrontendIncludes(module);
+    return createBaseConfig(outputPath, headerText, includes, config.frontendIgnorePatterns);
+}
+/**
+ * Build config for an infrastructure module
+ */
+export function buildInfrastructureConfig(module) {
+    const outputPath = `${config.outputDir}/infrastructure/${module.name}-packed.txt`;
+    const headerText = `Infrastructure: ${module.displayName} - ${module.description}`;
+    return createBaseConfig(outputPath, headerText, module.patterns, config.infrastructureIgnorePatterns);
+}
+/**
+ * Build config for all infrastructure
+ */
+export function buildFullInfrastructureConfig() {
+    const outputPath = `${config.outputDir}/infrastructure/all-packed.txt`;
+    const headerText = 'Infrastructure: Complete Docker & Services Setup';
+    const includes = [
+        `${config.infrastructurePath}/**/*.yaml`,
+        `${config.infrastructurePath}/**/*.yml`,
+        `${config.infrastructurePath}/**/*.json`,
+        `${config.infrastructurePath}/**/*.sql`,
+        `${config.infrastructurePath}/**/*.sh`,
+        `${config.infrastructurePath}/**/*.md`,
+    ];
+    return createBaseConfig(outputPath, headerText, includes, config.infrastructureIgnorePatterns);
+}

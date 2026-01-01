@@ -1,0 +1,822 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files and files not matching ignore patterns, combined into a single document by Repomix.
+The content has been processed where comments have been removed, empty lines have been removed.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+- Pay special attention to the Repository Description. These contain important context and guidelines specific to this project.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/api/**/*.java, rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/**/*.java, rental-backend/src/main/resources/application*.yml
+- Files matching these patterns are excluded: **/target/**, **/.idea/**, **/*.iml, **/.git/**, **/*.class, **/test/**, **/package-info.java
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Code comments have been removed from supported file types
+- Empty lines have been removed from all files
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<user_provided_header>
+Bounded Context: Auth
+
+⚠️ PARTIAL VIEW - Only adapter layer(s) included. Missing: domain, application. API package always included.
+</user_provided_header>
+
+<directory_structure>
+rental-backend/
+  src/
+    main/
+      java/
+        de/
+          cenglisch/
+            rentalbackend/
+              auth/
+                core/
+                  adapter/
+                    primary/
+                      rest/
+                        AuthRestAdapter.java
+                        RegisterRequest.java
+                        RegisterResponse.java
+                    secondary/
+                      authentik/
+                        dto/
+                          FlowExecutorRequest.java
+                          FlowExecutorResponse.java
+                        AuthentikAdminClient.java
+                        AuthentikClientConfig.java
+                        AuthentikFlowClient.java
+                        AuthentikFlowClientImpl.java
+                      persistence/
+                        PendingUserActivationEntity.java
+                        PendingUserActivationJpaRepository.java
+                        PendingUserActivationMapper.java
+                        PendingUserActivationRepositoryImpl.java
+      resources/
+        application-local.yml
+        application.yml
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/primary/rest/AuthRestAdapter.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.primary.rest;
+import de.cenglisch.rentalbackend.auth.core.application.AuthApplicationService;
+import de.cenglisch.rentalbackend.auth.core.application.RegisterCustomer;
+import de.cenglisch.rentalbackend.auth.core.application.UserActivationService;
+import de.cenglisch.rentalbackend.auth.core.domain.RegistrationResult;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.Map;
+@RestController
+@RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
+@Slf4j
+@Tag(name = "Auth", description = "Authentifizierung und Registrierung")
+public class AuthRestAdapter {
+    private final AuthApplicationService authApplicationService;
+    private final UserActivationService userActivationService;
+    @PostMapping("/register")
+    @Operation(summary = "Kunden-Registrierung", description = "Registriert einen neuen Kunden")
+    public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
+        log.debug("Received registration request for username: {}", request.username());
+        RegisterCustomer command = new RegisterCustomer(
+            request.username(),
+            request.email(),
+            request.password(),
+            request.passwordRepeat()
+        );
+        RegistrationResult result = authApplicationService.registerCustomer(command);
+        return switch (result) {
+            case RegistrationResult.Success s ->
+                ResponseEntity.status(HttpStatus.CREATED)
+                    .body(RegisterResponse.success(s.message()));
+            case RegistrationResult.ValidationError v ->
+                ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(RegisterResponse.validationError(v.fieldErrors()));
+            case RegistrationResult.FlowError f ->
+                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(RegisterResponse.error(f.message()));
+        };
+    }
+    @GetMapping("/activation-status/{username}")
+    @Operation(summary = "Aktivierungsstatus prüfen", description = "Prüft ob ein User seine E-Mail verifiziert hat")
+    public ResponseEntity<Map<String, Object>> getActivationStatus(@PathVariable String username) {
+        boolean activated = userActivationService.isUserActivated(username);
+        return ResponseEntity.ok(Map.of(
+            "username", username,
+            "activated", activated
+        ));
+    }
+}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/primary/rest/RegisterRequest.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.primary.rest;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+public record RegisterRequest(
+    @NotBlank(message = "Benutzername ist erforderlich")
+    @Size(min = 3, max = 50, message = "Benutzername muss zwischen 3 und 50 Zeichen lang sein")
+    String username,
+    @NotBlank(message = "E-Mail ist erforderlich")
+    @Email(message = "Ungültige E-Mail-Adresse")
+    String email,
+    @NotBlank(message = "Passwort ist erforderlich")
+    @Size(min = 8, message = "Passwort muss mindestens 8 Zeichen lang sein")
+    String password,
+    @NotBlank(message = "Passwort-Wiederholung ist erforderlich")
+    String passwordRepeat
+) {}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/primary/rest/RegisterResponse.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.primary.rest;
+import java.util.Map;
+public record RegisterResponse(
+    boolean success,
+    String message,
+    Map<String, String> errors
+) {
+    public static RegisterResponse success(String message) {
+        return new RegisterResponse(true, message, null);
+    }
+    public static RegisterResponse validationError(Map<String, String> errors) {
+        return new RegisterResponse(false, "Validierungsfehler", errors);
+    }
+    public static RegisterResponse error(String message) {
+        return new RegisterResponse(false, message, null);
+    }
+}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/secondary/authentik/dto/FlowExecutorRequest.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.secondary.authentik.dto;
+import java.util.HashMap;
+import java.util.Map;
+public record FlowExecutorRequest(
+    Map<String, String> fields
+) {
+    public static FlowExecutorRequest forEnrollment(
+            String username,
+            String email,
+            String password,
+            String passwordRepeat
+    ) {
+        Map<String, String> fields = new HashMap<>();
+        fields.put("username", username);
+        fields.put("email", email);
+        fields.put("password", password);
+        fields.put("password_repeat", passwordRepeat);
+        return new FlowExecutorRequest(fields);
+    }
+    public Map<String, String> toRequestBody() {
+        return new HashMap<>(fields);
+    }
+}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/secondary/authentik/dto/FlowExecutorResponse.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.secondary.authentik.dto;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
+import java.util.Map;
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record FlowExecutorResponse(
+    String component,
+    String type,
+    @JsonProperty("flow_info")
+    FlowInfo flowInfo,
+    @JsonProperty("response_errors")
+    Map<String, List<FieldError>> responseErrors,
+    @JsonProperty("pending_user")
+    String pendingUser,
+    @JsonProperty("pending_user_avatar")
+    String pendingUserAvatar,
+    List<FlowField> fields,
+    String to
+) {
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record FlowInfo(
+        String title,
+        String background,
+        @JsonProperty("cancel_url")
+        String cancelUrl,
+        String layout
+    ) {}
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record FieldError(
+        String string,
+        String code
+    ) {}
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record FlowField(
+        @JsonProperty("field_key")
+        String fieldKey,
+        String label,
+        String type,
+        boolean required,
+        String placeholder,
+        @JsonProperty("initial_value")
+        String initialValue,
+        Integer order,
+        @JsonProperty("sub_text")
+        String subText
+    ) {}
+    public boolean isFlowComplete() {
+        return "xak-flow-redirect".equals(component) || "redirect".equals(type);
+    }
+    public boolean hasErrors() {
+        return responseErrors != null && !responseErrors.isEmpty();
+    }
+    public boolean isEmailStage() {
+        return "ak-stage-email".equals(component);
+    }
+    public boolean isAccessDenied() {
+        return "ak-stage-access-denied".equals(component);
+    }
+    public boolean isPromptStage() {
+        return "ak-stage-prompt".equals(component);
+    }
+}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/secondary/authentik/AuthentikAdminClient.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.secondary.authentik;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
+import java.util.List;
+import java.util.Map;
+@Component
+@Slf4j
+public class AuthentikAdminClient {
+    private final RestTemplate restTemplate;
+    private final String authentikBaseUrl;
+    private final String apiToken;
+    public AuthentikAdminClient(
+            @Value("${authentik.auth-server-url}") String authentikBaseUrl,
+            @Value("${authentik.api-token:}") String apiToken
+    ) {
+        this.authentikBaseUrl = authentikBaseUrl;
+        this.apiToken = apiToken;
+        this.restTemplate = new RestTemplate();
+    }
+    public boolean isUserActive(String username) {
+        if (apiToken == null || apiToken.isBlank()) {
+            log.warn("Authentik API token not configured, cannot check user status");
+            return false;
+        }
+        try {
+            String url = authentikBaseUrl + "/api/v3/core/users/?username=" + username;
+            HttpHeaders headers = new HttpHeaders();
+            headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+            headers.setBearerAuth(apiToken);
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    Map.class
+            );
+            if (response.getBody() == null) {
+                return false;
+            }
+            List<Map<String, Object>> results = (List<Map<String, Object>>) response.getBody().get("results");
+            if (results == null || results.isEmpty()) {
+                log.debug("User not found in Authentik: {}", username);
+                return false;
+            }
+            Map<String, Object> user = results.get(0);
+            boolean isActive = Boolean.TRUE.equals(user.get("is_active"));
+            log.debug("User {} is_active: {}", username, isActive);
+            return isActive;
+        } catch (Exception e) {
+            log.error("Error checking user status in Authentik: {}", username, e);
+            return false;
+        }
+    }
+}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/secondary/authentik/AuthentikClientConfig.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.secondary.authentik;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestClient;
+@Configuration
+public class AuthentikClientConfig {
+    @Bean
+    public RestClient.Builder authentikRestClientBuilder() {
+        return RestClient.builder();
+    }
+}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/secondary/authentik/AuthentikFlowClient.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.secondary.authentik;
+import de.cenglisch.rentalbackend.auth.core.domain.RegistrationResult;
+public interface AuthentikFlowClient {
+    RegistrationResult executeEnrollmentFlow(
+        String username,
+        String email,
+        String password,
+        String passwordRepeat
+    );
+}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/secondary/authentik/AuthentikFlowClientImpl.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.secondary.authentik;
+import de.cenglisch.rentalbackend.auth.core.adapter.secondary.authentik.dto.FlowExecutorResponse;
+import de.cenglisch.rentalbackend.auth.core.domain.RegistrationResult;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.hc.client5.http.classic.HttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+@Component
+@Slf4j
+public class AuthentikFlowClientImpl implements AuthentikFlowClient {
+    private static final Pattern COOKIE_PATTERN = Pattern.compile("([^=]+)=([^;]+)");
+    private static final int MAX_REDIRECTS = 5;
+    private final RestTemplate restTemplate;
+    private final String authentikBaseUrl;
+    private final String enrollmentFlowSlug;
+    public AuthentikFlowClientImpl(
+            @Value("${authentik.auth-server-url}") String authentikBaseUrl,
+            @Value("${authentik.enrollment-flow-slug:express-sportwagen-enrollment-flow}") String enrollmentFlowSlug
+    ) {
+        this.authentikBaseUrl = authentikBaseUrl;
+        this.enrollmentFlowSlug = enrollmentFlowSlug;
+        HttpClient httpClient = HttpClientBuilder.create()
+                .disableRedirectHandling()
+                .build();
+        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
+        this.restTemplate = new RestTemplate(factory);
+        log.info("AuthentikFlowClient initialized with baseUrl: {}, flowSlug: {}",
+                authentikBaseUrl, enrollmentFlowSlug);
+    }
+    @Override
+    public RegistrationResult executeEnrollmentFlow(
+            String username,
+            String email,
+            String password,
+            String passwordRepeat
+    ) {
+        log.info("Starting enrollment flow for username: {}", username);
+        try {
+            String flowUrl = authentikBaseUrl + "/api/v3/flows/executor/" + enrollmentFlowSlug + "/";
+            HttpHeaders getHeaders = new HttpHeaders();
+            getHeaders.setAccept(List.of(MediaType.APPLICATION_JSON));
+            ResponseEntity<FlowExecutorResponse> initResponse = restTemplate.exchange(
+                    flowUrl,
+                    HttpMethod.GET,
+                    new HttpEntity<>(getHeaders),
+                    FlowExecutorResponse.class
+            );
+            String sessionCookie = extractSessionCookies(initResponse.getHeaders());
+            FlowExecutorResponse flowResponse = initResponse.getBody();
+            log.debug("Flow initiated, component: {}", flowResponse.component());
+            if (flowResponse.hasErrors()) {
+                return mapErrors(flowResponse);
+            }
+            if (!flowResponse.isPromptStage()) {
+                log.warn("Unexpected initial stage: {}", flowResponse.component());
+                return new RegistrationResult.FlowError("Flow konnte nicht gestartet werden.");
+            }
+            HttpHeaders postHeaders = new HttpHeaders();
+            postHeaders.setContentType(MediaType.APPLICATION_JSON);
+            postHeaders.setAccept(List.of(MediaType.APPLICATION_JSON));
+            postHeaders.set(HttpHeaders.COOKIE, sessionCookie);
+            String jsonBody = String.format(
+                "{\"username\":\"%s\",\"email\":\"%s\",\"password\":\"%s\",\"password_repeat\":\"%s\"}",
+                escapeJson(username),
+                escapeJson(email),
+                escapeJson(password),
+                escapeJson(passwordRepeat)
+            );
+            log.debug("POST to: {}", flowUrl);
+            ResponseEntity<FlowExecutorResponse> postResponse = restTemplate.exchange(
+                    flowUrl,
+                    HttpMethod.POST,
+                    new HttpEntity<>(jsonBody, postHeaders),
+                    FlowExecutorResponse.class
+            );
+            log.debug("POST response status: {}", postResponse.getStatusCode());
+            String newCookie = extractSessionCookies(postResponse.getHeaders());
+            if (!newCookie.isEmpty()) {
+                sessionCookie = newCookie;
+            }
+            if (postResponse.getStatusCode().is3xxRedirection()) {
+                flowResponse = followRedirects(flowUrl, sessionCookie);
+            } else {
+                flowResponse = postResponse.getBody();
+            }
+            log.debug("Final flow response, component: {}, responseErrors: {}",
+                    flowResponse.component(), flowResponse.responseErrors());
+            if (flowResponse.hasErrors()) {
+                log.warn("Enrollment failed with validation errors for username: {}", username);
+                return mapErrors(flowResponse);
+            }
+            if (flowResponse.isEmailStage() || flowResponse.isFlowComplete()) {
+                log.info("Enrollment successful for username: {}", username);
+                return new RegistrationResult.Success(
+                    "Registrierung erfolgreich. Bitte überprüfen Sie Ihre E-Mails zur Bestätigung."
+                );
+            }
+            if (flowResponse.isAccessDenied()) {
+                log.warn("Access denied during enrollment for username: {}", username);
+                return new RegistrationResult.FlowError("Registrierung wurde abgelehnt.");
+            }
+            if (flowResponse.responseErrors() != null && !flowResponse.responseErrors().isEmpty()) {
+                return mapErrors(flowResponse);
+            }
+            log.warn("Unexpected flow state: component={}", flowResponse.component());
+            return new RegistrationResult.FlowError(
+                "Unerwarteter Fehler bei der Registrierung. Bitte versuchen Sie es erneut."
+            );
+        } catch (HttpClientErrorException e) {
+            log.error("HTTP error during enrollment for username: {}, status: {}, body: {}",
+                    username, e.getStatusCode(), e.getResponseBodyAsString());
+            return new RegistrationResult.FlowError(
+                "Registrierung fehlgeschlagen. Bitte versuchen Sie es später erneut."
+            );
+        } catch (Exception e) {
+            log.error("Enrollment flow failed for username: {}", username, e);
+            return new RegistrationResult.FlowError(
+                "Registrierung fehlgeschlagen. Bitte versuchen Sie es später erneut."
+            );
+        }
+    }
+    private String escapeJson(String value) {
+        if (value == null) return "";
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
+    }
+    private FlowExecutorResponse followRedirects(String flowUrl, String sessionCookie) {
+        int redirectCount = 0;
+        String currentCookie = sessionCookie;
+        while (redirectCount < MAX_REDIRECTS) {
+            redirectCount++;
+            log.debug("Following redirect #{}", redirectCount);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+            headers.set(HttpHeaders.COOKIE, currentCookie);
+            ResponseEntity<FlowExecutorResponse> response = restTemplate.exchange(
+                    flowUrl,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    FlowExecutorResponse.class
+            );
+            String newCookie = extractSessionCookies(response.getHeaders());
+            if (!newCookie.isEmpty()) {
+                currentCookie = newCookie;
+            }
+            if (!response.getStatusCode().is3xxRedirection()) {
+                return response.getBody();
+            }
+        }
+        throw new IllegalStateException("Max redirects exceeded");
+    }
+    private String extractSessionCookies(HttpHeaders headers) {
+        List<String> setCookieHeaders = headers.get(HttpHeaders.SET_COOKIE);
+        if (setCookieHeaders == null || setCookieHeaders.isEmpty()) {
+            return "";
+        }
+        StringBuilder cookies = new StringBuilder();
+        for (String header : setCookieHeaders) {
+            Matcher matcher = COOKIE_PATTERN.matcher(header);
+            if (matcher.find()) {
+                if (cookies.length() > 0) {
+                    cookies.append("; ");
+                }
+                cookies.append(matcher.group(1)).append("=").append(matcher.group(2));
+            }
+        }
+        return cookies.toString();
+    }
+    private RegistrationResult mapErrors(FlowExecutorResponse response) {
+        Map<String, String> fieldErrors = new HashMap<>();
+        if (response.responseErrors() != null) {
+            response.responseErrors().forEach((field, errors) -> {
+                if (errors != null && !errors.isEmpty()) {
+                    FlowExecutorResponse.FieldError error = errors.get(0);
+                    log.debug("Mapping error - field: {}, code: {}, string: {}",
+                            field, error.code(), error.string());
+                    String errorMessage = mapErrorMessage(field, error);
+                    String targetField = mapFieldName(field, error);
+                    fieldErrors.put(targetField, errorMessage);
+                }
+            });
+        }
+        return new RegistrationResult.ValidationError(fieldErrors);
+    }
+    /**
+     * Mappt non_field_errors auf das richtige Feld basierend auf dem Error-Code/String.
+     */
+    private String mapFieldName(String field, FlowExecutorResponse.FieldError error) {
+        if (!"non_field_errors".equals(field)) {
+            return field;
+        }
+        String errorString = error.string() != null ? error.string().toLowerCase() : "";
+        String code = error.code() != null ? error.code().toLowerCase() : "";
+        // Username-bezogene Fehler
+        if (errorString.contains("username") || errorString.contains("benutzername")) {
+            return "username";
+        }
+        if (errorString.contains("email") || errorString.contains("e-mail")) {
+            return "email";
+        }
+        if (errorString.contains("password") || errorString.contains("passwort")) {
+            return "password";
+        }
+        if ("unique".equals(code)) {
+            if (errorString.contains("username")) return "username";
+            if (errorString.contains("email")) return "email";
+        }
+        return "general";
+    }
+    private String mapErrorMessage(String field, FlowExecutorResponse.FieldError error) {
+        String code = error.code() != null ? error.code() : "";
+        String errorString = error.string() != null ? error.string().toLowerCase() : "";
+        // Spezifische Code-Mappings
+        return switch (code) {
+            case "unique" -> {
+                if (errorString.contains("username") || errorString.contains("benutzername") || "username".equals(field)) {
+                    yield "Dieser Benutzername ist bereits vergeben";
+                } else if (errorString.contains("email") || "email".equals(field)) {
+                    yield "Diese E-Mail-Adresse ist bereits registriert";
+                }
+                yield "Dieser Wert ist bereits vergeben";
+            }
+            case "min_length", "password_too_short" -> "Passwort muss mindestens 8 Zeichen lang sein";
+            case "password_mismatch" -> "Die Passwörter stimmen nicht überein";
+            case "invalid" -> {
+                if ("email".equals(field) || errorString.contains("email")) {
+                    yield "Bitte geben Sie eine gültige E-Mail-Adresse ein";
+                }
+                yield "Ungültiger Wert";
+            }
+            case "required" -> "Dieses Feld ist erforderlich";
+            default -> {
+                if (errorString.contains("username") && (errorString.contains("exist") || errorString.contains("already") || errorString.contains("bereits"))) {
+                    yield "Dieser Benutzername ist bereits vergeben";
+                }
+                if (errorString.contains("email") && (errorString.contains("exist") || errorString.contains("already") || errorString.contains("bereits"))) {
+                    yield "Diese E-Mail-Adresse ist bereits registriert";
+                }
+                yield error.string() != null ? error.string() : "Ungültige Eingabe";
+            }
+        };
+    }
+}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/secondary/persistence/PendingUserActivationEntity.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.secondary.persistence;
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import java.time.Instant;
+import java.util.UUID;
+@Entity
+@Table(name = "pending_user_activations")
+@Getter
+@Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class PendingUserActivationEntity {
+    @Id
+    private UUID id;
+    @Column(nullable = false, unique = true)
+    private String username;
+    @Column(nullable = false)
+    private String email;
+    @Column(nullable = false)
+    private boolean activated;
+    @Column(nullable = false)
+    private Instant createdAt;
+    @Column
+    private Instant activatedAt;
+}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/secondary/persistence/PendingUserActivationJpaRepository.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.secondary.persistence;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Optional;
+import java.util.UUID;
+public interface PendingUserActivationJpaRepository extends JpaRepository<PendingUserActivationEntity, UUID> {
+    Optional<PendingUserActivationEntity> findByUsername(String username);
+    Optional<PendingUserActivationEntity> findByEmail(String email);
+    boolean existsByUsernameAndActivatedTrue(String username);
+}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/secondary/persistence/PendingUserActivationMapper.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.secondary.persistence;
+import de.cenglisch.rentalbackend.auth.core.domain.model.PendingUserActivation;
+import de.cenglisch.rentalbackend.auth.core.domain.model.PendingUserActivationId;
+public class PendingUserActivationMapper {
+    private PendingUserActivationMapper() {}
+    public static PendingUserActivationEntity toEntity(PendingUserActivation domain) {
+        PendingUserActivationEntity entity = new PendingUserActivationEntity();
+        entity.setId(domain.getId().value());
+        entity.setUsername(domain.getUsername());
+        entity.setEmail(domain.getEmail());
+        entity.setActivated(domain.isActivated());
+        entity.setCreatedAt(domain.getCreatedAt());
+        entity.setActivatedAt(domain.getActivatedAt());
+        return entity;
+    }
+    public static PendingUserActivation toDomain(PendingUserActivationEntity entity) {
+        return new PendingUserActivation(
+                PendingUserActivationId.of(entity.getId()),
+                entity.getUsername(),
+                entity.getEmail(),
+                entity.getCreatedAt(),
+                entity.isActivated(),
+                entity.getActivatedAt()
+        );
+    }
+}
+</file>
+
+<file path="rental-backend/src/main/java/de/cenglisch/rentalbackend/auth/core/adapter/secondary/persistence/PendingUserActivationRepositoryImpl.java">
+package de.cenglisch.rentalbackend.auth.core.adapter.secondary.persistence;
+import de.cenglisch.rentalbackend.auth.core.domain.model.PendingUserActivation;
+import de.cenglisch.rentalbackend.auth.core.domain.model.PendingUserActivationRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+@Repository
+@RequiredArgsConstructor
+public class PendingUserActivationRepositoryImpl implements PendingUserActivationRepository {
+    private final PendingUserActivationJpaRepository jpaRepository;
+    @Override
+    public void save(PendingUserActivation activation) {
+        jpaRepository.save(PendingUserActivationMapper.toEntity(activation));
+    }
+    @Override
+    public Optional<PendingUserActivation> findByUsername(String username) {
+        return jpaRepository.findByUsername(username)
+                .map(PendingUserActivationMapper::toDomain);
+    }
+    @Override
+    public Optional<PendingUserActivation> findByEmail(String email) {
+        return jpaRepository.findByEmail(email)
+                .map(PendingUserActivationMapper::toDomain);
+    }
+    @Override
+    public boolean existsByUsernameAndActivated(String username) {
+        return jpaRepository.existsByUsernameAndActivatedTrue(username);
+    }
+}
+</file>
+
+<file path="rental-backend/src/main/resources/application-local.yml">
+server:
+  port: 8081
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/rental
+    username: myuser
+    password: secret
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 5
+      minimum-idle: 2
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      auto-commit: true
+  liquibase:
+    contexts: local,development
+    drop-first: false
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9000/application/o/express-sportwagen-frontend/
+          jwk-set-uri: http://localhost:9000/application/o/express-sportwagen-frontend/jwks/
+authentik:
+  auth-server-url: http://localhost:9000
+  application: express-sportwagen-frontend
+  enrollment-flow-slug: express-sportwagen-enrollment-flow
+  api-token: dev-rental-backend-api-token-change-in-production
+bootstrap:
+  fahrzeuge: true
+logging:
+  level:
+    liquibase: INFO
+    de.cenglisch.rentalbackend: DEBUG
+    org.springframework.modulith: DEBUG
+    org.springframework.modulith.events: DEBUG
+    org.springframework.security: DEBUG
+</file>
+
+<file path="rental-backend/src/main/resources/application.yml">
+spring:
+  application:
+    name: rental-backend
+  profiles:
+    active: local
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    enabled: true
+  aop:
+    auto: true
+    proxy-target-class: true
+  jpa:
+    open-in-view: false
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+  modulith:
+    events:
+      jdbc:
+        archive:
+          enabled: true
+      republish-outstanding-events-on-restart: true
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    tags-sorter: alpha
+    operations-sorter: alpha
+    oauth:
+      client-id: express-sportwagen-frontend
+      use-pkce-with-authorization-code-grant: true
+authentik:
+  auth-server-url: http://localhost:9000
+  application: express-sportwagen-frontend
+  enrollment-flow-slug: express-sportwagen-enrollment-flow
+  api-token: ${AUTHENTIK_API_TOKEN:}
+server:
+  port: 8081
+</file>
+
+</files>
