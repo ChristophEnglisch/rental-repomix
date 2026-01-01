@@ -10,13 +10,18 @@ Unified CLI tool for packing Rental project modules using [Repomix](https://gith
 - **Dependency resolution** - Include API or full dependencies
 - **Layer filtering** - Select specific backend layers (domain, application, adapter)
 
-## Quick Start
+## Installation
 
 ```bash
-cd .repomix/cli
+cd cli
 npm install
 npm run build
+npm link
 ```
+
+Now `repomix-cli` is available globally.
+
+**Uninstall**: `npm unlink -g repomix-cli`
 
 ## Usage
 
