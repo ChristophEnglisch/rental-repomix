@@ -1,0 +1,10 @@
+{
+  "name": "rental-repomix",
+  "version": "2.0.0",
+  "description": "Repomix CLI for Rental project",
+  "scripts": {
+    "setup": "cd cli && npm install && npm run build && npm link",
+    "uninstall": "cd cli && npm unlink -g repomix-cli",
+    "rebuild": "cd cli && npm run build && npm link"
+  }
+}

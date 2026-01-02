@@ -222,6 +222,23 @@ export function buildFullInfrastructureConfig(): RepomixConfig {
 }
 
 /**
+ * Build config for all frontend (all modules + shared + config)
+ */
+export function buildFullFrontendConfig(): RepomixConfig {
+  const outputPath = `${config.outputDir}/frontend/all-packed.txt`;
+  const headerText = 'Frontend: Complete Frontend Application (All Modules + Shared + Config)';
+  
+  const includes = [
+    `${config.frontendSrc}/**/*.tsx`,
+    `${config.frontendSrc}/**/*.ts`,
+    `${config.frontendSrc}/**/*.jsx`,
+    `${config.frontendSrc}/**/*.js`,
+  ];
+  
+  return createBaseConfig(outputPath, headerText, includes, config.frontendIgnorePatterns);
+}
+
+/**
  * Build config for database migrations
  */
 export function buildDBMigrationConfig(module: DBMigrationModuleInfo): RepomixConfig {

@@ -8,6 +8,7 @@
  *   repomix-cli pack backend/buchung --deps       # With API dependencies
  *   repomix-cli pack backend/buchung --deps=full  # With full dependencies
  *   repomix-cli pack frontend/customer            # Pack frontend module
+ *   repomix-cli pack frontend                     # Pack all frontend
  *   repomix-cli pack infrastructure/authentik     # Pack infrastructure service
  *   repomix-cli pack infrastructure               # Pack all infrastructure
  *   repomix-cli pack --all                        # Pack everything
@@ -27,6 +28,7 @@ import {
   buildFrontendConfig, 
   buildInfrastructureConfig,
   buildFullInfrastructureConfig,
+  buildFullFrontendConfig,
   buildDBMigrationConfig
 } from './config-builder.js';
 import { runRepomix, runMultiple, cleanupOutputs } from './runner.js';
@@ -115,7 +117,14 @@ program
         ? target.split('/') 
         : [null, target];
       
-      if (moduleName === 'dbmigration' || (category === 'backend' && moduleName === 'dbmigration')) {
+      // Special cases for "all" commands without /
+      if (target === 'frontend') {
+        console.log(chalk.blue('\n📦 Packing all frontend\n'));
+        configs.push(buildFullFrontendConfig());
+      } else if (target === 'infrastructure') {
+        console.log(chalk.blue('\n📦 Packing all infrastructure\n'));
+        configs.push(buildFullInfrastructureConfig());
+      } else if (moduleName === 'dbmigration' || (category === 'backend' && moduleName === 'dbmigration')) {
         console.log(chalk.blue(`\n📦 Packing backend/dbmigration (Database Migrations)\n`));
         configs.push(buildDBMigrationConfig(dbMigrationModule));
         
@@ -130,7 +139,7 @@ program
         console.log(chalk.blue(`\n📦 Packing backend/${mod.name} (deps: ${depsMode}${layerInfo})\n`));
         configs.push(buildBackendConfig(mod, backendModules, depsMode, options.layers));
         
-      } else if (category === 'frontend' || (!category && frontendModules.some(m => m.name === moduleName))) {
+      } else if (category === 'frontend') {
         const mod = frontendModules.find(m => m.name === moduleName);
         if (!mod) {
           console.log(chalk.red(`Frontend module not found: ${moduleName}`));
@@ -141,20 +150,14 @@ program
         configs.push(buildFrontendConfig(mod));
         
       } else if (category === 'infrastructure') {
-        if (!moduleName) {
-          // Pack all infrastructure
-          console.log(chalk.blue('\n📦 Packing all infrastructure\n'));
-          configs.push(buildFullInfrastructureConfig());
-        } else {
-          const mod = infrastructureModules.find(m => m.name === moduleName);
-          if (!mod) {
-            console.log(chalk.red(`Infrastructure module not found: ${moduleName}`));
-            listAvailableModules(backendModules, frontendModules, infrastructureModules);
-            return;
-          }
-          console.log(chalk.blue(`\n📦 Packing infrastructure/${mod.name}\n`));
-          configs.push(buildInfrastructureConfig(mod));
+        const mod = infrastructureModules.find(m => m.name === moduleName);
+        if (!mod) {
+          console.log(chalk.red(`Infrastructure module not found: ${moduleName}`));
+          listAvailableModules(backendModules, frontendModules, infrastructureModules);
+          return;
         }
+        console.log(chalk.blue(`\n📦 Packing infrastructure/${mod.name}\n`));
+        configs.push(buildInfrastructureConfig(mod));
         
       } else {
         console.log(chalk.red(`Unknown target: ${target}`));
@@ -223,6 +226,7 @@ program
       }
       if (!options.backend && !options.infrastructure) {
         targets.push(...frontendModules.map(m => `frontend/${m.name}`));
+        targets.push('frontend');
       }
       if (!options.backend && !options.frontend) {
         targets.push('infrastructure');
@@ -272,6 +276,8 @@ program
         console.log(`   ${chalk.gray(mod.description)}`);
         console.log();
       }
+      
+      console.log(chalk.gray('Tip: Use "frontend" without module name to pack everything.\n'));
     }
     
     if (showAll || options.infrastructure) {
@@ -417,6 +423,7 @@ function listAvailableModules(
     console.log(chalk.gray(`    backend/${m.name}`));
   }
   console.log(chalk.yellow('  Frontend:'));
+  console.log(chalk.gray('    frontend (all)'));
   for (const m of frontend) {
     console.log(chalk.gray(`    frontend/${m.name}`));
   }

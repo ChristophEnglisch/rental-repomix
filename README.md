@@ -2,147 +2,113 @@
 
 Unified CLI tool for packing Rental project modules using [Repomix](https://github.com/yamadashy/repomix).
 
+## Quick Start
+
+```bash
+# Install
+npm run setup
+
+# Use
+repomix-cli pack backend/buchung
+repomix-cli pack frontend
+repomix-cli list
+```
+
 ## Features
 
 - **Dynamic config generation** - No static config files
 - **Four module categories**: Backend, Frontend, Infrastructure, Database Migrations
 - **Auto-discovery** - Parses `package-info.java` and `docker-compose.yaml`
-- **Dependency resolution** - Include API or full dependencies
+- **Dependency resolution** - Include API or full dependencies for backend
 - **Layer filtering** - Select specific backend layers (domain, application, adapter)
-- **Database migration support** - Pack Liquibase/Flyway migrations
 
 ## Installation
 
 ```bash
-cd cli
-npm install
-npm run build
-npm link
+npm run setup
 ```
 
-Now `repomix-cli` is available globally.
+This will install dependencies, build the CLI, and make it globally available.
 
-**Uninstall**: `npm unlink -g repomix-cli`
+**Uninstall**: `npm run uninstall`
 
-## Usage
-
-### Backend Modules
+## Basic Usage
 
 ```bash
-# Database migrations
-repomix-cli pack backend/dbmigration
+# List all available modules
+repomix-cli list
 
-# Basic packing
+# Pack a specific module
 repomix-cli pack backend/buchung
+repomix-cli pack frontend/customer
+repomix-cli pack infrastructure/postgres
 
-# With dependencies
+# Pack everything in a category
+repomix-cli pack frontend
+repomix-cli pack infrastructure
+
+# Pack everything
+repomix-cli pack --all
+```
+
+## Backend Features
+
+### Dependencies
+```bash
 repomix-cli pack backend/buchung --deps              # API only
 repomix-cli pack backend/buchung --deps=full         # Full code
+```
 
-# Layer filtering
+### Layer Filtering
+```bash
 repomix-cli pack backend/buchung --layers domain
 repomix-cli pack backend/buchung --layers domain,application
-repomix-cli pack backend/buchung --layers adapter
-
-# Combined
-repomix-cli pack backend/buchung --deps --layers domain,application
 ```
 
-### Frontend & Infrastructure
+Backend modules use DDD architecture:
+- **domain**: Domain model, aggregates, value objects
+- **application**: Application services, use cases
+- **adapter**: REST controllers, persistence, external services
 
+The `api` package is always included.
+
+### Database Migrations
 ```bash
-# Frontend
-repomix-cli pack frontend/customer
-repomix-cli pack frontend/employee
-
-# Infrastructure
-repomix-cli pack infrastructure                      # All
-repomix-cli pack infrastructure/postgres             # Single service
+repomix-cli pack backend/dbmigration
 ```
 
-### Batch Operations
+## Additional Commands
 
 ```bash
-repomix-cli pack --all                               # Everything
-repomix-cli pack --all-backend                       # All backend
-repomix-cli pack --all-backend --layers domain       # All backend, domain only
-```
-
-### Discovery
-
-```bash
-repomix-cli list                                     # All modules
-repomix-cli list --backend                           # Backend only
 repomix-cli deps buchung                             # Show dependencies
-```
-
-### Utility
-
-```bash
 repomix-cli clean                                    # Clean outputs
 repomix-cli pack target --dry-run                    # Preview
+repomix-cli completion                               # Install shell completion
 ```
 
-## Output Structure
+## Output
+
+All generated files are saved to `.repomix/outputs/`:
 
 ```
 .repomix/outputs/
 ├── backend/
 │   ├── dbmigration-packed.txt
 │   ├── buchung-packed.txt
-│   ├── buchung-deps-packed.txt
-│   ├── buchung-domain-packed.txt
-│   └── buchung-deps-domain-application-packed.txt
+│   └── buchung-deps-packed.txt
 ├── frontend/
+│   ├── all-packed.txt
 │   └── customer-packed.txt
 └── infrastructure/
     └── all-packed.txt
 ```
 
-## Layer Filtering
-
-Backend modules use DDD architecture with three layers:
-
-- **domain**: Domain model, aggregates, value objects
-- **application**: Application services, use cases
-- **adapter**: REST controllers, persistence, external services
-
-The `api` package is always included, regardless of layer selection.
-
-### Examples
-
-```bash
-# Only domain layer
-repomix-cli pack backend/buchung --layers domain
-
-# Domain + Application
-repomix-cli pack backend/buchung --layers domain,application
-
-# All layers (default)
-repomix-cli pack backend/buchung
-```
-
 ## Architecture
 
-```
-cli/
-├── src/
-│   ├── index.ts           # CLI commands
-│   ├── backend.ts         # Backend module discovery
-│   ├── frontend.ts        # Frontend module discovery
-│   ├── infrastructure.ts  # Infrastructure discovery
-│   ├── dbmigration.ts     # Database migration discovery
-│   ├── config-builder.ts  # Dynamic config generation
-│   ├── runner.ts          # Repomix execution
-│   ├── config.ts          # Configuration
-│   └── types.ts           # Type definitions
-└── fig/
-    └── repomix-cli.ts     # Shell completion
-```
+The CLI discovers modules automatically:
+- **Backend**: Scans `package-info.java` files for Spring Modulith metadata
+- **Database Migrations**: Packs Liquibase/Flyway files from `db/changelog`
+- **Frontend**: Uses predefined module configurations
+- **Infrastructure**: Parses `docker-compose.yaml` for services
 
-## Module Discovery
-
-**Backend**: Scans `package-info.java` files for Spring Modulith metadata
-**Database Migrations**: Packs all Liquibase/Flyway files from `rental-backend/src/main/resources/db/changelog`
-**Frontend**: Uses predefined module configurations
-**Infrastructure**: Parses `docker-compose.yaml` for services
+For more details, see the implementation in `cli/src/`.
