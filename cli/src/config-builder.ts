@@ -9,6 +9,7 @@ import type {
   BackendModuleInfo, 
   FrontendModuleInfo, 
   InfrastructureModuleInfo,
+  DBMigrationModuleInfo,
   DependencyInfo,
   DependencyMode,
   Layer
@@ -218,4 +219,14 @@ export function buildFullInfrastructureConfig(): RepomixConfig {
   ];
   
   return createBaseConfig(outputPath, headerText, includes, config.infrastructureIgnorePatterns);
+}
+
+/**
+ * Build config for database migrations
+ */
+export function buildDBMigrationConfig(module: DBMigrationModuleInfo): RepomixConfig {
+  const outputPath = `${config.outputDir}/backend/${module.name}-packed.txt`;
+  const headerText = `${module.displayName} - ${module.description}\n\nLiquibase/Flyway migration files from ${module.basePath}`;
+  
+  return createBaseConfig(outputPath, headerText, module.patterns, config.dbMigrationIgnorePatterns);
 }

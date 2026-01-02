@@ -6,7 +6,7 @@
 // Module Types
 // ============================================
 
-export type ModuleCategory = 'backend' | 'frontend' | 'infrastructure';
+export type ModuleCategory = 'backend' | 'frontend' | 'infrastructure' | 'dbmigration';
 
 export interface BaseModuleInfo {
   name: string;
@@ -38,7 +38,13 @@ export interface InfrastructureModuleInfo extends BaseModuleInfo {
   patterns: string[];
 }
 
-export type ModuleInfo = BackendModuleInfo | FrontendModuleInfo | InfrastructureModuleInfo;
+export interface DBMigrationModuleInfo extends BaseModuleInfo {
+  category: 'dbmigration';
+  basePath: string;
+  patterns: string[];
+}
+
+export type ModuleInfo = BackendModuleInfo | FrontendModuleInfo | InfrastructureModuleInfo | DBMigrationModuleInfo;
 
 // ============================================
 // Dependencies

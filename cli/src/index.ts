@@ -21,11 +21,13 @@ import { config } from './config.js';
 import { discoverBackendModules, buildDependencyGraph, resolveDependencies } from './backend.js';
 import { discoverFrontendModules } from './frontend.js';
 import { discoverInfrastructureModules } from './infrastructure.js';
+import { discoverDBMigrationModule } from './dbmigration.js';
 import { 
   buildBackendConfig, 
   buildFrontendConfig, 
   buildInfrastructureConfig,
-  buildFullInfrastructureConfig 
+  buildFullInfrastructureConfig,
+  buildDBMigrationConfig
 } from './config-builder.js';
 import { runRepomix, runMultiple, cleanupOutputs } from './runner.js';
 import type { DependencyMode, RepomixConfig } from './types.js';
@@ -67,6 +69,7 @@ program
     const backendModules = await discoverBackendModules();
     const frontendModules = await discoverFrontendModules();
     const infrastructureModules = await discoverInfrastructureModules();
+    const dbMigrationModule = await discoverDBMigrationModule();
     
     const configs: RepomixConfig[] = [];
     
@@ -112,7 +115,11 @@ program
         ? target.split('/') 
         : [null, target];
       
-      if (category === 'backend' || (!category && backendModules.some(m => m.name === moduleName))) {
+      if (moduleName === 'dbmigration' || (category === 'backend' && moduleName === 'dbmigration')) {
+        console.log(chalk.blue(`\n📦 Packing backend/dbmigration (Database Migrations)\n`));
+        configs.push(buildDBMigrationConfig(dbMigrationModule));
+        
+      } else if (category === 'backend' || (!category && backendModules.some(m => m.name === moduleName))) {
         const mod = backendModules.find(m => m.name === moduleName);
         if (!mod) {
           console.log(chalk.red(`Backend module not found: ${moduleName}`));
@@ -204,6 +211,7 @@ program
     const backendModules = await discoverBackendModules();
     const frontendModules = await discoverFrontendModules();
     const infrastructureModules = await discoverInfrastructureModules();
+    const dbMigrationModule = await discoverDBMigrationModule();
     
     // JSON output for completion
     if (options.json) {
@@ -211,6 +219,7 @@ program
       
       if (!options.frontend && !options.infrastructure) {
         targets.push(...backendModules.map(m => `backend/${m.name}`));
+        targets.push('backend/dbmigration');
       }
       if (!options.backend && !options.infrastructure) {
         targets.push(...frontendModules.map(m => `frontend/${m.name}`));
@@ -229,6 +238,11 @@ program
     if (showAll || options.backend) {
       console.log(chalk.blue.bold('\n📦 Backend Bounded Contexts\n'));
       const graph = buildDependencyGraph(backendModules);
+      
+      // Show DB Migration module first
+      console.log(`🗄️  ${chalk.green.bold(dbMigrationModule.displayName)} ${chalk.gray('(backend/dbmigration)')}`);
+      console.log(`   ${chalk.gray(dbMigrationModule.description)}`);
+      console.log();
       
       for (const mod of backendModules) {
         const typeIcon = mod.type === 'shared' ? '🔧' : 
@@ -398,6 +412,7 @@ function listAvailableModules(
 ) {
   console.log(chalk.gray('\nAvailable targets:'));
   console.log(chalk.yellow('  Backend:'));
+  console.log(chalk.gray('    backend/dbmigration'));
   for (const m of backend) {
     console.log(chalk.gray(`    backend/${m.name}`));
   }

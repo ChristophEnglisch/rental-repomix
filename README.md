@@ -5,10 +5,11 @@ Unified CLI tool for packing Rental project modules using [Repomix](https://gith
 ## Features
 
 - **Dynamic config generation** - No static config files
-- **Three module categories**: Backend, Frontend, Infrastructure
+- **Four module categories**: Backend, Frontend, Infrastructure, Database Migrations
 - **Auto-discovery** - Parses `package-info.java` and `docker-compose.yaml`
 - **Dependency resolution** - Include API or full dependencies
 - **Layer filtering** - Select specific backend layers (domain, application, adapter)
+- **Database migration support** - Pack Liquibase/Flyway migrations
 
 ## Installation
 
@@ -28,6 +29,9 @@ Now `repomix-cli` is available globally.
 ### Backend Modules
 
 ```bash
+# Database migrations
+repomix-cli pack backend/dbmigration
+
 # Basic packing
 repomix-cli pack backend/buchung
 
@@ -84,6 +88,7 @@ repomix-cli pack target --dry-run                    # Preview
 ```
 .repomix/outputs/
 ├── backend/
+│   ├── dbmigration-packed.txt
 │   ├── buchung-packed.txt
 │   ├── buchung-deps-packed.txt
 │   ├── buchung-domain-packed.txt
@@ -126,6 +131,7 @@ cli/
 │   ├── backend.ts         # Backend module discovery
 │   ├── frontend.ts        # Frontend module discovery
 │   ├── infrastructure.ts  # Infrastructure discovery
+│   ├── dbmigration.ts     # Database migration discovery
 │   ├── config-builder.ts  # Dynamic config generation
 │   ├── runner.ts          # Repomix execution
 │   ├── config.ts          # Configuration
@@ -137,5 +143,6 @@ cli/
 ## Module Discovery
 
 **Backend**: Scans `package-info.java` files for Spring Modulith metadata
+**Database Migrations**: Packs all Liquibase/Flyway files from `rental-backend/src/main/resources/db/changelog`
 **Frontend**: Uses predefined module configurations
 **Infrastructure**: Parses `docker-compose.yaml` for services

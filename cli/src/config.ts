@@ -10,6 +10,9 @@ export const config = {
   // Backend source path
   backendSrc: 'rental-backend/src/main/java/de/cenglisch/rentalbackend',
   
+  // Backend resources path
+  backendResourcesPath: 'rental-backend/src/main/resources',
+  
   // Frontend source path
   frontendSrc: 'rental-frontend/src',
   
@@ -64,6 +67,12 @@ export const config = {
     '**/data/**',
     '**/volumes/**',
     '**/*.log',
+  ],
+  
+  // DB Migration ignore patterns
+  dbMigrationIgnorePatterns: [
+    '**/.git/**',
+    '**/target/**',
   ],
   
   // Infrastructure service mappings (service name -> folder mappings)
